@@ -167,6 +167,145 @@
 └── README.md               # 项目介绍
 ```
 
+## 项目架构说明
+
+### 系统架构
+
+#### 1. 架构模式
+- **前后端分离架构**：前端和后端完全独立，通过API进行通信
+- **MVC架构**（后端）：Model-View-Controller设计模式
+- **组件化架构**（前端）：基于Vue 3的组件化开发
+
+#### 2. 系统分层
+
+| 层       | 技术栈                | 职责                          |
+|---------|--------------------|-----------------------------|
+| 前端界面层   | Vue 3 + Element Plus | 用户交互和数据展示                  |
+| 前端逻辑层   | Pinia + Vue Router  | 状态管理和路由控制                  |
+| 通信层     | Axios              | 前后端数据通信                    |
+| API层     | Django REST Framework | 提供RESTful API              |
+| 业务逻辑层   | Django             | 处理核心业务逻辑                   |
+| 数据访问层   | Django ORM         | 数据库操作                      |
+| 数据库层    | SQLite/MySQL       | 数据存储                       |
+
+### 数据库设计
+
+#### 1. 数据库选型
+- **开发环境**：SQLite（轻量级，无需额外配置）
+- **生产环境**：MySQL（高性能，适合生产部署）
+
+#### 2. 核心表关系
+
+```
+┌────────────┐     ┌────────────┐     ┌────────────┐
+│  projects  │────►│  products  │────►│  modules   │
+└────────────┘     └────────────┘     └────────────┘
+                                           │
+                                           ▼
+┌────────────┐     ┌────────────┐     ┌────────────┐
+│   users    │◄────┤    bugs    │◄────┤ bug_attach │
+└────────────┘     └────────────┘     └────────────┘
+```
+
+#### 3. 主要表结构
+
+##### 3.1 项目表（projects）
+| 字段名 | 数据类型 | 约束 | 描述 |
+|-------|---------|------|------|
+| id | INT | PRIMARY KEY | 项目ID |
+| name | VARCHAR(100) | NOT NULL | 项目名称 |
+| description | TEXT | | 项目描述 |
+| created_at | DATETIME | NOT NULL | 创建时间 |
+| updated_at | DATETIME | NOT NULL | 更新时间 |
+
+##### 3.2 产品表（products）
+| 字段名 | 数据类型 | 约束 | 描述 |
+|-------|---------|------|------|
+| id | INT | PRIMARY KEY | 产品ID |
+| name | VARCHAR(100) | NOT NULL | 产品名称 |
+| project_id | INT | FOREIGN KEY | 关联项目ID |
+| description | TEXT | | 产品描述 |
+| created_at | DATETIME | NOT NULL | 创建时间 |
+| updated_at | DATETIME | NOT NULL | 更新时间 |
+
+##### 3.3 模块表（modules）
+| 字段名 | 数据类型 | 约束 | 描述 |
+|-------|---------|------|------|
+| id | INT | PRIMARY KEY | 模块ID |
+| name | VARCHAR(100) | NOT NULL | 模块名称 |
+| product_id | INT | FOREIGN KEY | 关联产品ID |
+| description | TEXT | | 模块描述 |
+| created_at | DATETIME | NOT NULL | 创建时间 |
+| updated_at | DATETIME | NOT NULL | 更新时间 |
+
+##### 3.4 用户表（users）
+| 字段名 | 数据类型 | 约束 | 描述 |
+|-------|---------|------|------|
+| id | INT | PRIMARY KEY | 用户ID |
+| username | VARCHAR(150) | NOT NULL, UNIQUE | 用户名 |
+| email | VARCHAR(254) | UNIQUE | 邮箱 |
+| password | VARCHAR(128) | NOT NULL | 密码（加密存储） |
+| role | VARCHAR(20) | NOT NULL | 角色（super_admin/admin/tester/developer） |
+| status | VARCHAR(20) | NOT NULL | 状态（active/disabled） |
+| phone | VARCHAR(20) | | 手机号 |
+| avatar | VARCHAR(100) | | 头像URL |
+| created_at | DATETIME | NOT NULL | 创建时间 |
+| updated_at | DATETIME | NOT NULL | 更新时间 |
+
+##### 3.5 BUG表（bugs）
+| 字段名 | 数据类型 | 约束 | 描述 |
+|-------|---------|------|------|
+| id | INT | PRIMARY KEY | BUG ID |
+| title | VARCHAR(200) | NOT NULL | BUG标题 |
+| description | TEXT | NOT NULL | BUG描述 |
+| severity | VARCHAR(20) | NOT NULL | 严重程度 |
+| priority | VARCHAR(20) | NOT NULL | 优先级 |
+| status | VARCHAR(20) | NOT NULL | 状态 |
+| module_id | INT | FOREIGN KEY | 所属模块ID |
+| version | VARCHAR(50) | | 版本号 |
+| creator_id | INT | FOREIGN KEY | 创建人ID |
+| assignee_id | INT | FOREIGN KEY | 处理人ID |
+| solution | TEXT | | 解决说明 |
+| reject_reason | TEXT | | 驳回原因 |
+| created_at | DATETIME | NOT NULL | 创建时间 |
+| updated_at | DATETIME | NOT NULL | 更新时间 |
+
+##### 3.6 BUG附件表（bug_attachments）
+| 字段名 | 数据类型 | 约束 | 描述 |
+|-------|---------|------|------|
+| id | INT | PRIMARY KEY | 附件ID |
+| bug_id | INT | FOREIGN KEY | 关联BUG ID |
+| file | VARCHAR(200) | NOT NULL | 附件路径 |
+| created_at | DATETIME | NOT NULL | 上传时间 |
+
+### 4. 表关系说明
+
+1. **项目-产品-模块**：三层级联关系，一个项目包含多个产品，一个产品包含多个模块
+2. **模块-BUG**：一对多关系，一个模块包含多个BUG
+3. **用户-BUG**：
+   - 创建关系：一个用户可以创建多个BUG
+   - 分配关系：一个用户可以处理多个BUG
+4. **BUG-附件**：一对多关系，一个BUG可以有多个附件
+
+### 5. 核心业务流程
+
+1. **BUG提报流程**：
+   - 测试人员登录系统
+   - 选择所属项目、产品、模块
+   - 填写BUG详情和附件
+   - 提交BUG（状态：待处理）
+
+2. **BUG处理流程**：
+   - 管理员分配BUG给开发人员
+   - 开发人员修改状态为"处理中"
+   - 开发人员修复后修改状态为"已解决"或"已驳回"
+   - 测试人员验证后修改状态为"已关闭"
+
+3. **状态流转**：
+   ```
+   新建 → 待处理 → 处理中 → 已解决/已驳回 → 已关闭
+   ```
+
 ## API文档
 
 ### 认证
