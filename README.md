@@ -235,7 +235,7 @@ MIT License
 ## 联系方式
 
 如有问题或建议，欢迎通过以下方式联系：
-- 邮箱：your-email@example.com
+- 邮箱：2638182207@qq.com
 - GitHub：https://github.com/your-username/bug-management-system
 
 ## 更新日志
