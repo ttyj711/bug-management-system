@@ -131,3 +131,10 @@ SIMPLE_JWT = {
 # CORS跨域配置
 CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOW_CREDENTIALS = True
+
+# 应用JWT补丁，解决djangorestframework-simplejwt 4.4.0与PyJWT 2.x的兼容性问题
+try:
+    from backend.jwt_patch import apply_jwt_patch
+    apply_jwt_patch()
+except ImportError as e:
+    print(f"JWT补丁导入失败: {e}")

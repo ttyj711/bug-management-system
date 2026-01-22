@@ -82,10 +82,11 @@
             {{ formatDate(row.created_at) }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" fixed="right" width="150">
+        <el-table-column label="操作" fixed="right" width="200">
           <template #default="{ row }">
             <el-button size="small" link type="primary" @click.stop="router.push(`/bugs/${row.id}`)">查看</el-button>
             <el-button size="small" link type="primary" @click.stop="openEditDialog(row)" v-if="canEdit(row)">编辑</el-button>
+            <el-button size="small" link type="success" @click.stop="handleCopyFromList(row)">复制</el-button>
             <el-button size="small" link type="danger" @click.stop="handleDelete(row)" v-if="userStore.isSuperAdmin">删除</el-button>
           </template>
         </el-table-column>
@@ -171,15 +172,16 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, reactive, onMounted, watch } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { getBugList, getBug, createBug, updateBug, deleteBug } from '../api/bug'
+import { getBugList, getBug, createBug, updateBug, deleteBug, copyBug } from '../api/bug'
 import { getDevelopers } from '../api/user'
 import { getModuleCascade } from '../api/module'
 import { useUserStore } from '../stores/user'
 
 const router = useRouter()
+const route = useRoute()
 const userStore = useUserStore()
 
 const loading = ref(false)
@@ -301,6 +303,39 @@ const handleDelete = async (bug) => {
   fetchList()
 }
 
+// 从列表页复制BUG
+const handleCopyFromList = async (bug) => {
+  loading.value = true
+  try {
+    const copyData = await copyBug(bug.id)
+    
+    // 打开创建对话框并填充数据
+    editingBug.value = null
+    Object.assign(form, {
+      title: copyData.title,
+      description: copyData.description,
+      severity: copyData.severity,
+      priority: copyData.priority,
+      moduleCascade: copyData.module_cascade || [],
+      version: copyData.version || '',
+      assignee: null // 处理人留空
+    })
+    
+    // 文件列表留空，需要用户重新选择或上传
+    fileList.value = []
+    
+    // 打开创建对话框
+    dialogVisible.value = true
+    
+    ElMessage.success('BUG复制成功，可直接修改后提交')
+  } catch (error) {
+    console.error('复制BUG失败:', error)
+    ElMessage.error('复制BUG失败')
+  } finally {
+    loading.value = false
+  }
+}
+
 // 打开创建弹窗
 const openCreateDialog = () => {
   editingBug.value = null
@@ -388,11 +423,65 @@ const handleSubmit = async () => {
   }
 }
 
+// 处理复制BUG逻辑
+const handleCopyBug = () => {
+  const copyParam = route.query.copy
+  if (copyParam === 'true') {
+    try {
+      // 从会话存储中获取复制的数据
+      const copiedBugData = sessionStorage.getItem('copiedBugData')
+      if (copiedBugData) {
+        const data = JSON.parse(copiedBugData)
+        
+        // 打开创建对话框并填充数据
+        editingBug.value = null
+        Object.assign(form, {
+          title: data.title,
+          description: data.description,
+          severity: data.severity,
+          priority: data.priority,
+          moduleCascade: data.module_cascade || [],
+          version: data.version || '',
+          assignee: null // 处理人留空
+        })
+        
+        // 文件列表留空，需要用户重新选择或上传
+        fileList.value = []
+        
+        // 打开创建对话框
+        dialogVisible.value = true
+        
+        // 清空会话存储中的数据
+        sessionStorage.removeItem('copiedBugData')
+        
+        // 移除URL中的copy参数，避免刷新页面后重复触发
+        router.replace({ query: { ...route.query, copy: undefined } })
+      }
+    } catch (error) {
+      console.error('处理复制BUG数据失败:', error)
+      ElMessage.error('处理复制数据失败')
+    }
+  }
+}
+
 onMounted(() => {
   fetchList()
   fetchDevelopers()
   fetchModuleCascade()
+  
+  // 检查是否需要处理复制BUG
+  handleCopyBug()
 })
+
+// 监听路由变化，处理复制参数
+watch(
+  () => route.query.copy,
+  (newVal) => {
+    if (newVal === 'true') {
+      handleCopyBug()
+    }
+  }
+)
 </script>
 
 <style scoped>

@@ -10,10 +10,17 @@ export function getBug(id) {
   return request.get(`/bugs/${id}/`)
 }
 
+// 复制BUG
+export function copyBug(id) {
+  return request.get(`/bugs/${id}/copy/`)
+}
+
 // 创建BUG
 export function createBug(data) {
   return request.post('/bugs/', data, {
-    headers: { 'Content-Type': 'multipart/form-data' }
+    headers: {
+      'Content-Type': 'multipart/form-data'
+    }
   })
 }
 
