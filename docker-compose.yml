@@ -1,0 +1,41 @@
+version: '3.8'
+
+services:
+  # 后端服务
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: bug-management-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - DEBUG=True
+      - SECRET_KEY=django-insecure-*zcuhf_n(f&-!#_$uhj&i4)=$_*r6qh!f*+v=h1eag)babw+9x
+      - ALLOWED_HOSTS=*
+      - CORS_ALLOW_ALL_ORIGINS=True
+    volumes:
+      - ./backend:/app
+      - ./backend/media:/app/media
+    restart: always
+    networks:
+      - bug-management-network
+
+  # 前端服务
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: bug-management-frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    restart: always
+    networks:
+      - bug-management-network
+
+# 网络配置
+networks:
+  bug-management-network:
+    driver: bridge
