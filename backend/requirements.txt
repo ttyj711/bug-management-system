@@ -18,6 +18,9 @@ django-cors-headers==3.10.1
 # 其他依赖
 PyJWT==2.4.0
 
+# 图片处理
+Pillow==10.0.0
+
 # 开发依赖
 # 仅在开发环境使用
 # ipython==7.31.1
