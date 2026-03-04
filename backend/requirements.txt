@@ -1,0 +1,25 @@
+# Django核心依赖
+Django==3.2.22
+
+# REST Framework
+djangorestframework==3.15.1
+
+# JWT认证
+djangorestframework-simplejwt==4.4.0
+
+# 跨域支持
+django-cors-headers==3.10.1
+
+# 数据库驱动
+# SQLite (内置，无需额外安装)
+# MySQL支持 (生产环境使用)
+# mysqlclient==2.1.0
+
+# 其他依赖
+PyJWT==2.4.0
+
+# 开发依赖
+# 仅在开发环境使用
+# ipython==7.31.1
+# pytest==7.0.1
+# pytest-django==4.5.2
