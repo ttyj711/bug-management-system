@@ -15,9 +15,11 @@ RUN set -ex; \
         sed -i 's@http://\(deb\|security\)\.debian\.org@http://mirrors.aliyun.com@g' /etc/apt/sources.list.d/debian.sources; \
     fi
 
-# 安装 gcc (现在会从阿里云下载，速度很快)
+# 安装 gcc 和 Pillow 依赖 (现在会从阿里云下载，速度很快)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
+    libjpeg-dev \
+    zlib1g-dev \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
