@@ -52,3 +52,8 @@ export function uploadAttachment(id, file) {
 export function deleteAttachment(bugId, attachmentId) {
   return request.delete(`/bugs/${bugId}/attachment/${attachmentId}/`)
 }
+
+// 复制BUG（获取BUG详情用于复制）
+export function copyBug(id) {
+  return request.get(`/bugs/${id}/`)
+}

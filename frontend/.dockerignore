@@ -1,0 +1,18 @@
+# Dependencies / build output
+node_modules/
+dist/
+
+# Vite / tooling caches
+.vite/
+
+# VCS / editor / OS
+.git/
+.idea/
+.vscode/
+Thumbs.db
+Desktop.ini
+
+# Env files (should be injected at runtime)
+.env
+.env.*
+
