@@ -30,6 +30,7 @@ INSTALLED_APPS = [
     'users',
     'bugs',
     'modules',
+    'notifications',
 ]
 
 MIDDLEWARE = [

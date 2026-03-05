@@ -3,48 +3,95 @@
     <el-card>
       <template #header>
         <div class="card-header">
-          <el-form inline>
-            <el-form-item label="状态">
-              <el-select v-model="filters.status" placeholder="全部" clearable style="width: 110px" @change="fetchList">
-                <el-option label="待处理" value="pending" />
-                <el-option label="处理中" value="processing" />
-                <el-option label="已解决" value="resolved" />
-                <el-option label="已驳回" value="rejected" />
-                <el-option label="已关闭" value="closed" />
-              </el-select>
-            </el-form-item>
-            <el-form-item label="严重程度">
-              <el-select v-model="filters.severity" placeholder="全部" clearable style="width: 100px" @change="fetchList">
-                <el-option label="致命" value="critical" />
-                <el-option label="严重" value="major" />
-                <el-option label="一般" value="minor" />
-                <el-option label="轻微" value="trivial" />
-              </el-select>
-            </el-form-item>
-            <el-form-item label="优先级">
-              <el-select v-model="filters.priority" placeholder="全部" clearable style="width: 80px" @change="fetchList">
-                <el-option label="高" value="high" />
-                <el-option label="中" value="medium" />
-                <el-option label="低" value="low" />
-              </el-select>
-            </el-form-item>
-            <el-form-item label="我的BUG">
-              <el-select v-model="filters.my_bugs" placeholder="全部" clearable style="width: 120px" @change="fetchList">
-                <el-option label="我创建的" value="created" />
-                <el-option label="分配给我的" value="assigned" />
-              </el-select>
-            </el-form-item>
-            <el-form-item>
-              <el-input v-model="filters.search" placeholder="搜索标题/描述" clearable @keyup.enter="fetchList" style="width: 180px" />
-            </el-form-item>
-            <el-form-item>
-              <el-button type="primary" @click="fetchList">搜索</el-button>
-              <el-button @click="resetFilters">重置</el-button>
-            </el-form-item>
+          <el-form inline class="filter-form">
+            <el-row :gutter="10">
+              <el-col :span="4">
+                <el-form-item label="状态">
+                  <el-select v-model="filters.status" placeholder="全部" clearable @change="fetchList">
+                    <el-option label="待处理" value="pending" />
+                    <el-option label="处理中" value="processing" />
+                    <el-option label="已解决" value="resolved" />
+                    <el-option label="已驳回" value="rejected" />
+                    <el-option label="已关闭" value="closed" />
+                  </el-select>
+                </el-form-item>
+              </el-col>
+              <el-col :span="4">
+                <el-form-item label="严重程度">
+                  <el-select v-model="filters.severity" placeholder="全部" clearable @change="fetchList">
+                    <el-option label="致命" value="critical" />
+                    <el-option label="严重" value="major" />
+                    <el-option label="一般" value="minor" />
+                    <el-option label="轻微" value="trivial" />
+                  </el-select>
+                </el-form-item>
+              </el-col>
+              <el-col :span="4">
+                <el-form-item label="优先级">
+                  <el-select v-model="filters.priority" placeholder="全部" clearable @change="fetchList">
+                    <el-option label="高" value="high" />
+                    <el-option label="中" value="medium" />
+                    <el-option label="低" value="low" />
+                  </el-select>
+                </el-form-item>
+              </el-col>
+              <el-col :span="4">
+                <el-form-item label="我的BUG">
+                  <el-select v-model="filters.my_bugs" placeholder="全部" clearable @change="fetchList">
+                    <el-option label="我创建的" value="created" />
+                    <el-option label="分配给我的" value="assigned" />
+                  </el-select>
+                </el-form-item>
+              </el-col>
+              <el-col :span="4">
+                <el-form-item label="处理人">
+                  <el-select v-model="filters.assignee" placeholder="全部" clearable filterable @change="fetchList">
+                    <el-option v-for="dev in developers" :key="dev.id" :label="dev.username" :value="dev.id" />
+                  </el-select>
+                </el-form-item>
+              </el-col>
+              <el-col :span="4">
+                <el-form-item label="模块">
+                  <el-select v-model="filters.module" placeholder="全部" clearable filterable @change="fetchList">
+                    <el-option v-for="m in moduleOptions" :key="m.id" :label="m.path" :value="m.id" />
+                  </el-select>
+                </el-form-item>
+              </el-col>
+            </el-row>
+            <el-row :gutter="10">
+              <el-col :span="8">
+                <el-form-item label="创建时间">
+                  <el-date-picker
+                    v-model="filters.dateRange"
+                    type="daterange"
+                    range-separator="至"
+                    start-placeholder="开始日期"
+                    end-placeholder="结束日期"
+                    value-format="YYYY-MM-DD"
+                    @change="fetchList"
+                    style="width: 100%"
+                  />
+                </el-form-item>
+              </el-col>
+              <el-col :span="6">
+                <el-form-item>
+                  <el-input v-model="filters.search" placeholder="搜索标题/描述" clearable @keyup.enter="fetchList" style="width: 200px" />
+                </el-form-item>
+              </el-col>
+              <el-col :span="4">
+                <el-form-item>
+                  <el-button type="primary" @click="fetchList">搜索</el-button>
+                  <el-button @click="resetFilters">重置</el-button>
+                </el-form-item>
+              </el-col>
+            </el-row>
           </el-form>
-          <el-button type="primary" @click="openCreateDialog" v-if="userStore.hasPermission('bug:create')">
-            提报BUG
-          </el-button>
+          <div class="header-actions">
+            <el-button type="primary" @click="openCreateDialog" v-if="userStore.hasPermission('bug:create')">
+              提报BUG
+            </el-button>
+            <el-button @click="router.push('/bugs/kanban')">看板视图</el-button>
+          </div>
         </div>
       </template>
 
@@ -195,6 +242,9 @@ const filters = reactive({
   severity: '',
   priority: '',
   my_bugs: '',
+  assignee: '',
+  module: '',
+  dateRange: null,
   search: ''
 })
 
@@ -227,6 +277,7 @@ const submitting = ref(false)
 const developers = ref([])
 const fileList = ref([])
 const moduleCascadeOptions = ref([])
+const moduleOptions = ref([])
 
 const form = reactive({
   title: '',
@@ -253,11 +304,24 @@ const formatDate = (date) => {
 const fetchList = async () => {
   loading.value = true
   try {
-    const res = await getBugList({
+    const params = {
       page: page.value,
       page_size: pageSize.value,
-      ...filters
-    })
+      status: filters.status,
+      severity: filters.severity,
+      priority: filters.priority,
+      my_bugs: filters.my_bugs,
+      assignee: filters.assignee,
+      module: filters.module,
+      search: filters.search
+    }
+    
+    if (filters.dateRange && filters.dateRange.length === 2) {
+      params.date_start = filters.dateRange[0]
+      params.date_end = filters.dateRange[1]
+    }
+    
+    const res = await getBugList(params)
     list.value = res.results
     total.value = res.count
   } finally {
@@ -275,14 +339,37 @@ const fetchDevelopers = async () => {
 
 const fetchModuleCascade = async () => {
   try {
-    moduleCascadeOptions.value = await getModuleCascade()
+    const data = await getModuleCascade()
+    moduleCascadeOptions.value = data
+    
+    const result = []
+    const flattenModules = (items, path = '') => {
+      items.forEach(item => {
+        if (item.children && item.children.length > 0) {
+          flattenModules(item.children, path ? `${path} / ${item.label}` : item.label)
+        } else {
+          result.push({
+            id: item.value,
+            path: path ? `${path} / ${item.label}` : item.label
+          })
+        }
+      })
+    }
+    flattenModules(data)
+    moduleOptions.value = result
   } catch (e) {
     // ignore
   }
 }
 
 const resetFilters = () => {
-  Object.keys(filters).forEach(key => filters[key] = '')
+  Object.keys(filters).forEach(key => {
+    if (key === 'dateRange') {
+      filters[key] = null
+    } else {
+      filters[key] = ''
+    }
+  })
   fetchList()
 }
 

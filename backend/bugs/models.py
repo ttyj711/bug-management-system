@@ -135,3 +135,51 @@ class BugAttachment(models.Model):
         db_table = 'bug_attachments'  # 数据库表名
         verbose_name = 'BUG附件'
         verbose_name_plural = verbose_name
+
+
+class BugHistory(models.Model):
+    """
+    BUG操作历史记录
+    
+    记录BUG的每一次变更，包括：
+    - 状态变更
+    - 字段修改
+    - 分配变更
+    """
+    
+    ACTION_CHOICES = (
+        ('create', '创建'),
+        ('update', '更新'),
+        ('status_change', '状态变更'),
+        ('assign', '分配'),
+        ('delete', '删除'),
+    )
+    
+    bug = models.ForeignKey(
+        Bug,
+        on_delete=models.CASCADE,
+        related_name='history',
+        verbose_name='BUG'
+    )
+    operator = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='bug_operations',
+        verbose_name='操作人'
+    )
+    action = models.CharField('操作类型', max_length=20, choices=ACTION_CHOICES)
+    field_name = models.CharField('变更字段', max_length=50, blank=True, default='')
+    old_value = models.TextField('原值', blank=True, default='')
+    new_value = models.TextField('新值', blank=True, default='')
+    description = models.TextField('操作描述', blank=True, default='')
+    created_at = models.DateTimeField('操作时间', auto_now_add=True)
+    
+    class Meta:
+        db_table = 'bug_history'
+        verbose_name = 'BUG操作历史'
+        verbose_name_plural = verbose_name
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return f'{self.bug.title} - {self.get_action_display()} - {self.created_at}'

@@ -52,6 +52,25 @@
           <el-image v-for="att in bug.attachments" :key="att.id" :src="att.file" :preview-src-list="bug.attachments.map(a => a.file)" fit="cover" class="attachment-img" />
         </div>
       </div>
+
+      <div class="section" v-if="bug.history && bug.history.length">
+        <h3>操作历史</h3>
+        <el-timeline>
+          <el-timeline-item v-for="item in bug.history" :key="item.id" :timestamp="formatDate(item.created_at)" placement="top">
+            <el-card shadow="never">
+              <div class="history-item">
+                <span class="operator">{{ item.operator_name }}</span>
+                <el-tag size="small" type="info">{{ item.action_display }}</el-tag>
+                <span class="description" v-if="item.description">{{ item.description }}</span>
+                <div class="change-detail" v-if="item.old_value || item.new_value">
+                  <span v-if="item.old_value">原值: {{ item.old_value }}</span>
+                  <span v-if="item.new_value">新值: {{ item.new_value }}</span>
+                </div>
+              </div>
+            </el-card>
+          </el-timeline-item>
+        </el-timeline>
+      </div>
     </el-card>
 
     <!-- 状态修改弹窗 -->
@@ -433,5 +452,28 @@ onMounted(() => {
   height: 150px;
   border-radius: 4px;
   cursor: pointer;
+}
+
+.history-item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.history-item .operator {
+  font-weight: 600;
+  color: #303133;
+}
+
+.history-item .description {
+  color: #606266;
+  font-size: 14px;
+}
+
+.history-item .change-detail {
+  font-size: 12px;
+  color: #909399;
+  display: flex;
+  gap: 16px;
 }
 </style>

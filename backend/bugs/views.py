@@ -8,52 +8,41 @@ from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from django.db.models import Q
 
-from .models import Bug, BugAttachment
+from .models import Bug, BugAttachment, BugHistory
 from .serializers import (
     BugListSerializer, BugDetailSerializer, BugCreateSerializer,
     BugUpdateSerializer, BugStatusUpdateSerializer, BugAttachmentSerializer
 )
 
 
+def record_history(bug, user, action, field_name='', old_value='', new_value='', description=''):
+    BugHistory.objects.create(
+        bug=bug,
+        operator=user,
+        action=action,
+        field_name=field_name,
+        old_value=old_value,
+        new_value=new_value,
+        description=description
+    )
+
+
+def send_notification(user, notification_type, title, content, bug_id=None):
+    from notifications.models import Notification
+    Notification.objects.create(
+        user=user,
+        type=notification_type,
+        title=title,
+        content=content,
+        bug_id=bug_id
+    )
+
+
 class BugViewSet(viewsets.ModelViewSet):
-    """
-    BUG管理视图集
-    
-    提供BUG的完整CRUD操作和状态管理：
-    
-    基础接口：
-    - GET /api/bugs/ - 获取BUG列表（支持多条件筛选）
-    - POST /api/bugs/ - 创建BUG（测试人员、管理员可创建）
-    - GET /api/bugs/{id}/ - 获取BUG详情
-    - PUT/PATCH /api/bugs/{id}/ - 更新BUG信息
-    - DELETE /api/bugs/{id}/ - 删除BUG（仅超管）
-    
-    扩展接口：
-    - POST /api/bugs/{id}/update_status/ - 更新BUG状态
-    - POST /api/bugs/{id}/assign/ - 分配BUG给开发人员
-    - POST /api/bugs/{id}/upload_attachment/ - 上传附件
-    - DELETE /api/bugs/{id}/attachment/{attachment_id}/ - 删除附件
-    
-    查询参数：
-    - status: 按状态筛选（pending/processing/resolved/rejected/closed）
-    - severity: 按严重程度筛选
-    - priority: 按优先级筛选
-    - assignee: 按处理人ID筛选
-    - creator: 按创建人ID筛选
-    - search: 按标题或描述搜索
-    - my_bugs: 'created'=我创建的, 'assigned'=分配给我的
-    """
     queryset = Bug.objects.all()
-    # 支持文件上传和JSON数据
     parser_classes = [MultiPartParser, FormParser, JSONParser]
     
     def get_serializer_class(self):
-        """
-        根据操作类型选择序列化器
-        - 列表页使用简化的序列化器提高性能
-        - 详情页使用完整的序列化器
-        - 创建和更新使用各自的序列化器
-        """
         if self.action == 'list':
             return BugListSerializer
         elif self.action == 'retrieve':
@@ -65,18 +54,22 @@ class BugViewSet(viewsets.ModelViewSet):
         return BugListSerializer
     
     def get_permissions(self):
-        """所有BUG操作都需要登录"""
         return [permissions.IsAuthenticated()]
     
     def get_queryset(self):
-        """
-        获取BUG查询集
-        支持多条件筛选，并根据用户角色返回不同范围的数据
-        """
         user = self.request.user
         queryset = Bug.objects.all()
         
-        # 从URL参数获取筛选条件
+        # 数据权限控制
+        if user.is_super_admin or user.is_admin:
+            pass
+        elif user.is_tester:
+            queryset = queryset.filter(Q(creator=user) | Q(assignee=user))
+        elif user.is_developer:
+            queryset = queryset.filter(assignee=user)
+        else:
+            queryset = queryset.none()
+        
         status_param = self.request.query_params.get('status')
         severity = self.request.query_params.get('severity')
         priority = self.request.query_params.get('priority')
@@ -84,8 +77,10 @@ class BugViewSet(viewsets.ModelViewSet):
         creator = self.request.query_params.get('creator')
         search = self.request.query_params.get('search')
         my_bugs = self.request.query_params.get('my_bugs')
+        module = self.request.query_params.get('module')
+        date_start = self.request.query_params.get('date_start')
+        date_end = self.request.query_params.get('date_end')
         
-        # 应用筛选条件
         if status_param:
             queryset = queryset.filter(status=status_param)
         if severity:
@@ -97,82 +92,94 @@ class BugViewSet(viewsets.ModelViewSet):
         if creator:
             queryset = queryset.filter(creator_id=creator)
         if search:
-            # 在标题和描述中搜索关键词
             queryset = queryset.filter(
                 Q(title__icontains=search) | Q(description__icontains=search)
             )
+        if module:
+            queryset = queryset.filter(module_id=module)
+        if date_start:
+            queryset = queryset.filter(created_at__date__gte=date_start)
+        if date_end:
+            queryset = queryset.filter(created_at__date__lte=date_end)
         
-        # 我的BUG筛选（快捷过滤器）
         if my_bugs == 'created':
-            queryset = queryset.filter(creator=user)  # 我创建的
+            queryset = queryset.filter(creator=user)
         elif my_bugs == 'assigned':
-            queryset = queryset.filter(assignee=user)  # 分配给我的
+            queryset = queryset.filter(assignee=user)
         
         return queryset
     
     def create(self, request, *args, **kwargs):
-        """
-        创建BUG
-        
-        权限：超级管理员、普通管理员、测试人员可创建
-        开发人员不能创建BUG（只能处理）
-        """
         user = request.user
         if user.role not in ('super_admin', 'admin', 'tester'):
             return Response({'detail': '您没有权限提报BUG'}, status=status.HTTP_403_FORBIDDEN)
-        return super().create(request, *args, **kwargs)
+        
+        response = super().create(request, *args, **kwargs)
+        
+        bug = Bug.objects.get(id=response.data['id'])
+        record_history(bug, user, 'create', description=f'创建了BUG: {bug.title}')
+        
+        return response
     
     def update(self, request, *args, **kwargs):
-        """
-        更新BUG
-        
-        权限规则：
-        - 超级管理员：可编辑所有BUG
-        - 测试人员：只能编辑自己创建的且状态为"待处理"的BUG
-        """
         user = request.user
         bug = self.get_object()
         
-        # 超级管理员可以编辑所有BUG
         if user.is_super_admin:
-            return super().update(request, *args, **kwargs)
-        
-        # 测试人员权限检查
-        if user.is_tester:
+            pass
+        elif user.is_tester:
             if bug.creator != user:
                 return Response({'detail': '您只能编辑自己创建的BUG'}, status=status.HTTP_403_FORBIDDEN)
             if bug.status != 'pending':
                 return Response({'detail': '只能编辑待处理状态的BUG'}, status=status.HTTP_403_FORBIDDEN)
+        else:
+            return Response({'detail': '您没有权限编辑BUG'}, status=status.HTTP_403_FORBIDDEN)
         
-        return super().update(request, *args, **kwargs)
+        old_values = {
+            'title': bug.title,
+            'description': bug.description[:100] if bug.description else '',
+            'severity': bug.get_severity_display(),
+            'priority': bug.get_priority_display(),
+            'version': bug.version,
+            'assignee': bug.assignee.username if bug.assignee else '',
+        }
+        
+        response = super().update(request, *args, **kwargs)
+        
+        bug.refresh_from_db()
+        new_values = {
+            'title': bug.title,
+            'description': bug.description[:100] if bug.description else '',
+            'severity': bug.get_severity_display(),
+            'priority': bug.get_priority_display(),
+            'version': bug.version,
+            'assignee': bug.assignee.username if bug.assignee else '',
+        }
+        
+        for field, old_val in old_values.items():
+            new_val = new_values[field]
+            if old_val != new_val:
+                record_history(
+                    bug, user, 'update',
+                    field_name=field,
+                    old_value=str(old_val),
+                    new_value=str(new_val),
+                    description=f'将{field}从"{old_val}"修改为"{new_val}"'
+                )
+        
+        return response
     
     def destroy(self, request, *args, **kwargs):
-        """
-        删除BUG
-        
-        权限：仅超级管理员可删除BUG
-        防止误删或恶意删除
-        """
         if not request.user.is_super_admin:
             return Response({'detail': '您没有权限删除BUG'}, status=status.HTTP_403_FORBIDDEN)
+        
+        bug = self.get_object()
+        record_history(bug, request.user, 'delete', description=f'删除了BUG: {bug.title}')
+        
         return super().destroy(request, *args, **kwargs)
     
     @action(detail=True, methods=['post'])
     def update_status(self, request, pk=None):
-        """
-        更新BUG状态
-        
-        接口：POST /api/bugs/{id}/update_status/
-        
-        请求参数：
-        - status: 新状态
-        - solution: 解决说明（状态为resolved时）
-        - reject_reason: 驳回原因（状态为rejected时）
-        
-        权限规则：
-        - 开发人员：只能处理分配给自己的BUG，可将状态改为processing/resolved/rejected
-        - 超级管理员：可以修改任何BUG的状态
-        """
         user = request.user
         bug = self.get_object()
         
@@ -181,39 +188,45 @@ class BugViewSet(viewsets.ModelViewSet):
         
         new_status = serializer.validated_data['status']
         
-        # 开发人员权限检查
         if user.is_developer:
-            # 只能处理分配给自己的BUG
             if bug.assignee != user:
                 return Response({'detail': '您只能处理分配给自己的BUG'}, status=status.HTTP_403_FORBIDDEN)
-            # 只能改为特定状态
             if new_status not in ('processing', 'resolved', 'rejected'):
                 return Response({'detail': '您只能将状态改为处理中、已解决或已驳回'}, status=status.HTTP_403_FORBIDDEN)
         elif not user.is_super_admin:
             return Response({'detail': '您没有权限修改BUG状态'}, status=status.HTTP_403_FORBIDDEN)
         
-        # 更新状态
+        old_status = bug.get_status_display()
+        
         bug.status = new_status
-        # 根据状态保存附加信息
         if new_status == 'resolved':
             bug.solution = serializer.validated_data.get('solution', '')
         elif new_status == 'rejected':
             bug.reject_reason = serializer.validated_data.get('reject_reason', '')
         bug.save()
         
+        new_status_display = bug.get_status_display()
+        record_history(
+            bug, user, 'status_change',
+            field_name='status',
+            old_value=old_status,
+            new_value=new_status_display,
+            description=f'将状态从"{old_status}"改为"{new_status_display}"'
+        )
+        
+        if bug.creator and bug.creator != user:
+            send_notification(
+                bug.creator,
+                'bug_status',
+                f'BUG状态变更: {bug.title}',
+                f'您的BUG "#{bug.id} {bug.title}" 状态已从"{old_status}"变更为"{new_status_display}"',
+                bug.id
+            )
+        
         return Response({'detail': '状态更新成功', 'status': bug.status})
     
     @action(detail=True, methods=['post'])
     def assign(self, request, pk=None):
-        """
-        分配BUG给开发人员
-        
-        接口：POST /api/bugs/{id}/assign/
-        权限：超级管理员、普通管理员
-        
-        请求参数：
-        - assignee: 开发人员的用户ID
-        """
         user = request.user
         if not user.is_super_admin and not user.is_admin:
             return Response({'detail': '您没有权限分配BUG'}, status=status.HTTP_403_FORBIDDEN)
@@ -224,47 +237,163 @@ class BugViewSet(viewsets.ModelViewSet):
         if not assignee_id:
             return Response({'detail': '请选择处理人'}, status=status.HTTP_400_BAD_REQUEST)
         
-        # 更新处理人
+        old_assignee = bug.assignee.username if bug.assignee else '未分配'
+        
         bug.assignee_id = assignee_id
         bug.save()
+        
+        new_assignee = bug.assignee.username if bug.assignee else '未分配'
+        record_history(
+            bug, user, 'assign',
+            field_name='assignee',
+            old_value=old_assignee,
+            new_value=new_assignee,
+            description=f'将处理人从"{old_assignee}"改为"{new_assignee}"'
+        )
+        
+        if bug.assignee and bug.assignee != user:
+            send_notification(
+                bug.assignee,
+                'bug_assigned',
+                f'新BUG分配: {bug.title}',
+                f'您被分配了一个新的BUG "#{bug.id} {bug.title}"，请及时处理',
+                bug.id
+            )
         
         return Response({'detail': '分配成功'})
     
     @action(detail=True, methods=['post'])
     def upload_attachment(self, request, pk=None):
-        """
-        上传BUG附件（截图）
-        
-        接口：POST /api/bugs/{id}/upload_attachment/
-        请求：multipart/form-data，包含file字段
-        
-        返回：上传成功的附件信息
-        """
         bug = self.get_object()
         file = request.FILES.get('file')
         
         if not file:
             return Response({'detail': '请选择文件'}, status=status.HTTP_400_BAD_REQUEST)
         
-        # 创建附件记录
         attachment = BugAttachment.objects.create(bug=bug, file=file)
         serializer = BugAttachmentSerializer(attachment)
+        
+        record_history(
+            bug, request.user, 'update',
+            field_name='attachment',
+            new_value=file.name,
+            description=f'上传了附件: {file.name}'
+        )
         
         return Response(serializer.data, status=status.HTTP_201_CREATED)
     
     @action(detail=True, methods=['delete'], url_path='attachment/(?P<attachment_id>[^/.]+)')
     def delete_attachment(self, request, pk=None, attachment_id=None):
-        """
-        删除BUG附件
-        
-        接口：DELETE /api/bugs/{id}/attachment/{attachment_id}/
-        """
         bug = self.get_object()
         
         try:
             attachment = bug.attachments.get(id=attachment_id)
+            file_name = attachment.file.name
             attachment.delete()
+            
+            record_history(
+                bug, request.user, 'update',
+                field_name='attachment',
+                old_value=file_name,
+                description=f'删除了附件: {file_name}'
+            )
+            
             return Response({'detail': '删除成功'})
         except BugAttachment.DoesNotExist:
             return Response({'detail': '附件不存在'}, status=status.HTTP_404_NOT_FOUND)
-
+    
+    @action(detail=False, methods=['get'])
+    def statistics(self, request):
+        from django.db.models import Count
+        from django.utils import timezone
+        from datetime import timedelta
+        
+        user = request.user
+        
+        if user.is_super_admin or user.is_admin:
+            queryset = Bug.objects.all()
+        elif user.is_tester:
+            queryset = Bug.objects.filter(Q(creator=user) | Q(assignee=user))
+        elif user.is_developer:
+            queryset = Bug.objects.filter(assignee=user)
+        else:
+            queryset = Bug.objects.none()
+        
+        total = queryset.count()
+        
+        status_data = {
+            'pending': queryset.filter(status='pending').count(),
+            'processing': queryset.filter(status='processing').count(),
+            'resolved': queryset.filter(status='resolved').count(),
+            'rejected': queryset.filter(status='rejected').count(),
+            'closed': queryset.filter(status='closed').count(),
+        }
+        
+        severity_data = {
+            'critical': queryset.filter(severity='critical').count(),
+            'major': queryset.filter(severity='major').count(),
+            'minor': queryset.filter(severity='minor').count(),
+            'trivial': queryset.filter(severity='trivial').count(),
+        }
+        
+        priority_data = {
+            'urgent': queryset.filter(priority='urgent').count(),
+            'high': queryset.filter(priority='high').count(),
+            'medium': queryset.filter(priority='medium').count(),
+            'low': queryset.filter(priority='low').count(),
+        }
+        
+        today = timezone.now().date()
+        thirty_days_ago = today - timedelta(days=30)
+        
+        trend_data = []
+        for i in range(30):
+            date = thirty_days_ago + timedelta(days=i)
+            created = queryset.filter(created_at__date=date).count()
+            resolved = queryset.filter(
+                status='resolved',
+                updated_at__date=date
+            ).count()
+            trend_data.append({
+                'date': date.strftime('%m-%d'),
+                'created': created,
+                'resolved': resolved
+            })
+        
+        module_stats = queryset.filter(
+            module__isnull=False
+        ).values(
+            'module__name',
+            'module__product__name',
+            'module__product__project__name'
+        ).annotate(count=Count('id')).order_by('-count')[:10]
+        
+        module_data = [
+            {
+                'name': f"{item['module__product__project__name']}/{item['module__product__name']}/{item['module__name']}",
+                'count': item['count']
+            }
+            for item in module_stats
+        ]
+        
+        developer_stats = queryset.filter(
+            assignee__isnull=False,
+            status__in=['pending', 'processing']
+        ).values(
+            'assignee__username'
+        ).annotate(count=Count('id')).order_by('-count')[:10]
+        
+        developer_data = [
+            {'name': item['assignee__username'], 'count': item['count']}
+            for item in developer_stats
+        ]
+        
+        return Response({
+            'total': total,
+            'status': status_data,
+            'severity': severity_data,
+            'priority': priority_data,
+            'trend': trend_data,
+            'module': module_data,
+            'developer': developer_data
+        })

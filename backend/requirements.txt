@@ -16,7 +16,7 @@ django-cors-headers==3.10.1
 # mysqlclient==2.1.0
 
 # 其他依赖
-PyJWT==2.4.0
+PyJWT==1.7.1
 
 # 图片处理
 Pillow==10.0.0

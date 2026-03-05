@@ -15,13 +15,25 @@ const routes = [
     children: [
       {
         path: '',
-        redirect: '/bugs'
+        redirect: '/dashboard'
+      },
+      {
+        path: 'dashboard',
+        name: 'Dashboard',
+        component: () => import('../views/Dashboard.vue'),
+        meta: { title: '数据统计' }
       },
       {
         path: 'bugs',
         name: 'BugList',
         component: () => import('../views/BugList.vue'),
         meta: { title: 'BUG列表' }
+      },
+      {
+        path: 'bugs/kanban',
+        name: 'BugKanban',
+        component: () => import('../views/BugKanban.vue'),
+        meta: { title: 'BUG看板' }
       },
 
       {

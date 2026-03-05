@@ -57,3 +57,8 @@ export function deleteAttachment(bugId, attachmentId) {
 export function copyBug(id) {
   return request.get(`/bugs/${id}/`)
 }
+
+// 获取BUG统计数据
+export function getBugStatistics() {
+  return request.get('/bugs/statistics/')
+}
