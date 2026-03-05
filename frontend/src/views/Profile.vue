@@ -76,9 +76,18 @@ const passwordRules = {
   old_password: [{ required: true, message: '请输入原密码', trigger: 'blur' }],
   new_password: [
     { required: true, message: '请输入新密码', trigger: 'blur' },
-    { min: 8, message: '密码长度不能少于8位', trigger: 'blur' }
+    { min: 6, message: '密码长度不能少于6位', trigger: 'blur' }
   ],
-  confirm_password: [{ required: true, message: '请确认新密码', trigger: 'blur' }]
+  confirm_password: [
+    { required: true, message: '请确认新密码', trigger: 'blur' },
+    { validator: (rule, value, callback) => {
+      if (value !== passwordForm.new_password) {
+        callback(new Error('两次密码输入不一致'))
+      } else {
+        callback()
+      }
+    }, trigger: 'blur' }
+  ]
 }
 
 const fetchProfile = async () => {
@@ -103,11 +112,6 @@ const handleUpdateProfile = async () => {
 const handleChangePassword = async () => {
   const valid = await passwordFormRef.value.validate().catch(() => false)
   if (!valid) return
-
-  if (passwordForm.new_password !== passwordForm.confirm_password) {
-    ElMessage.error('两次密码输入不一致')
-    return
-  }
 
   passwordLoading.value = true
   try {

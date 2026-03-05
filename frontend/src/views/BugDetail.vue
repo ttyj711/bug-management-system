@@ -226,8 +226,14 @@ const statusFormRef = ref(null)
 const statusForm = reactive({ status: '', solution: '', reject_reason: '' })
 const statusRules = {
   status: [{ required: true, message: '请选择状态', trigger: 'change' }],
-  solution: [{ required: true, message: '请输入解决说明', trigger: 'blur' }],
-  reject_reason: [{ required: true, message: '请输入驳回原因', trigger: 'blur' }]
+  solution: [
+    { required: true, message: '请输入解决说明', trigger: 'blur' },
+    { min: 5, message: '解决说明至少5个字符', trigger: 'blur' }
+  ],
+  reject_reason: [
+    { required: true, message: '请输入驳回原因', trigger: 'blur' },
+    { min: 5, message: '驳回原因至少5个字符', trigger: 'blur' }
+  ]
 }
 
 // 分配

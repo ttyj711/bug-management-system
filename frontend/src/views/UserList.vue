@@ -158,8 +158,20 @@ const form = reactive({
 const rules = {
   username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
   role: [{ required: true, message: '请选择角色', trigger: 'change' }],
-  password: [{ required: true, message: '请输入密码', trigger: 'blur', min: 8 }],
-  confirm_password: [{ required: true, message: '请确认密码', trigger: 'blur' }]
+  password: [
+    { required: true, message: '请输入密码', trigger: 'blur' },
+    { min: 6, message: '密码长度至少6位', trigger: 'blur' }
+  ],
+  confirm_password: [
+    { required: true, message: '请确认密码', trigger: 'blur' },
+    { validator: (rule, value, callback) => {
+      if (value !== form.password) {
+        callback(new Error('两次密码输入不一致'))
+      } else {
+        callback()
+      }
+    }, trigger: 'blur' }
+  ]
 }
 
 const passwordDialogVisible = ref(false)
@@ -172,8 +184,20 @@ const passwordForm = reactive({
 })
 
 const passwordRules = {
-  new_password: [{ required: true, message: '请输入新密码', trigger: 'blur', min: 8 }],
-  confirm_password: [{ required: true, message: '请确认密码', trigger: 'blur' }]
+  new_password: [
+    { required: true, message: '请输入新密码', trigger: 'blur' },
+    { min: 6, message: '密码长度至少6位', trigger: 'blur' }
+  ],
+  confirm_password: [
+    { required: true, message: '请确认密码', trigger: 'blur' },
+    { validator: (rule, value, callback) => {
+      if (value !== passwordForm.new_password) {
+        callback(new Error('两次密码输入不一致'))
+      } else {
+        callback()
+      }
+    }, trigger: 'blur' }
+  ]
 }
 
 const formatDate = (date) => {
@@ -275,11 +299,6 @@ const openPasswordDialog = (user) => {
 const handleResetPassword = async () => {
   const valid = await passwordFormRef.value.validate().catch(() => false)
   if (!valid) return
-
-  if (passwordForm.new_password !== passwordForm.confirm_password) {
-    ElMessage.error('两次密码输入不一致')
-    return
-  }
 
   submitting.value = true
   try {
